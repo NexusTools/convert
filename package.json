@@ -1,0 +1,26 @@
+{
+  "name": "video-transcoder-cli",
+  "version": "1.0.0",
+  "description": "Batch video transcoder with AMD hardware acceleration, audio transcoding rules, and safe interrupt handling",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "convert-videos": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "ffmpeg",
+    "transcode",
+    "hevc_amf",
+    "eac3",
+    "opus",
+    "video"
+  ],
+  "author": "",
+  "license": "ISC"
+}
