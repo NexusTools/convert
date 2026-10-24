@@ -75,6 +75,10 @@ export function determineTranscodeConfig(metadata, filePath, systemEncoder = nul
       hasAttachments: false,
       targetExt: '.opus',
       transcodeVideo: false,
+      videoStreamCount: 0,
+      isHdr: false,
+      sourceIsHdr: false,
+      is10Bit: false,
       targetVideoCodec: 'none',
       targetVideoCodecDisplay: 'none',
       audioStreamPlans,
@@ -99,6 +103,7 @@ export function determineTranscodeConfig(metadata, filePath, systemEncoder = nul
   let transcodeVideo = false;
   let targetVideoCodec = 'copy';
   let targetVideoCodecDisplay = `${videoCodec || 'unknown'} (copy)`;
+  const encodeAsHdr = Boolean(metadata.isHdr && supportsHdr);
 
   if (metadata.videoStreamPresent) {
     if (sourceVideoRank > targetRank) {
@@ -210,8 +215,15 @@ export function determineTranscodeConfig(metadata, filePath, systemEncoder = nul
     hasAttachments,
     targetExt,
     transcodeVideo,
+    videoStreamCount: metadata.videoStreamCount || 1,
+    isHdr: encodeAsHdr,
+    sourceIsHdr: Boolean(metadata.isHdr),
+    is10Bit: Boolean(metadata.is10Bit),
     targetVideoCodec,
     targetVideoCodecDisplay,
+    hwDeviceSpec: systemEncoder ? (systemEncoder.hwDeviceSpec || null) : null,
+    requiresHwUpload: Boolean(systemEncoder && systemEncoder.requiresHwUpload),
+    useMain10Profile: systemEncoder && typeof systemEncoder.useMain10Profile === 'boolean' ? systemEncoder.useMain10Profile : true,
     audioStreamPlans,
     subtitleStreamPlans,
     targetAudioCodecDisplay,
@@ -375,6 +387,10 @@ export async function scanDirectory(dirPath, scheduler = null, systemEncoder = n
   const totalCandidates = candidateFiles.length;
   console.log(`[SCANNING] Traversed directory and found ${totalCandidates} candidate media file(s).`);
 
+  if (scheduler && typeof scheduler.beginDirectoryProbe === 'function') {
+    scheduler.beginDirectoryProbe(totalCandidates);
+  }
+
   const videoQueue = [];
   const audioOnlyQueue = [];
   const skippedList = [];
@@ -441,7 +457,11 @@ export async function scanDirectory(dirPath, scheduler = null, systemEncoder = n
       const percentStr = currentPercent.toFixed(1);
 
       if (scheduler) {
-        scheduler.updateProbingStatus(processedCount, totalCandidates, percentStr);
+        if (typeof scheduler.recordProbedCandidate === 'function') {
+          scheduler.recordProbedCandidate();
+        } else {
+          scheduler.updateProbingStatus(processedCount, totalCandidates, percentStr);
+        }
       } else {
         if (percentStr !== lastLoggedPercentStr || processedCount === totalCandidates) {
           lastLoggedPercentStr = percentStr;

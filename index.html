@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NXTConverter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="shortcut icon" type="image/x-icon" href="icon.ico">
+  <style>
+    :root {
+      --bg-dark: #0f141c;
+      --bg-panel: #171f2c;
+      --bg-card: #1e293b;
+      --bg-card-active: #1e3148;
+      --border-color: #2e3c52;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-indigo: #6366f1;
+      --accent-green: #22c55e;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --accent-purple: #a855f7;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Header Bar */
+    .app-header {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    .brand-block {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-title {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      color: var(--text-main);
+    }
+
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .gpu-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: var(--accent-blue);
+      padding: 5px 11px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover:not(:disabled) {
+      border-color: var(--accent-blue);
+      background: #26354d;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #4f46e5);
+      border-color: #38bdf8;
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0369a1, #4338ca);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.18);
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.3);
+      border-color: var(--accent-red);
+    }
+
+    /* Top Metrics & Progress Strip */
+    .metrics-strip {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1.1fr;
+      gap: 14px;
+      padding: 14px 20px;
+      background: rgba(23, 31, 44, 0.65);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .metric-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 15px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .metric-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .metric-value-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .metric-big {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-main);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-big.eta-highlight {
+      color: var(--accent-blue);
+    }
+
+    .metric-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Progress Bars */
+    .progress-track {
+      width: 100%;
+      height: 10px;
+      background: #0b0f17;
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #0284c7, #38bdf8, #6366f1);
+      border-radius: 999px;
+      transition: width 0.25s ease;
+    }
+
+    .progress-fill.probing-fill {
+      background: linear-gradient(90deg, #d97706, #fbbf24);
+    }
+
+    .progress-fill.audio-fill {
+      background: linear-gradient(90deg, #9333ea, #c084fc);
+    }
+
+    /* Dual Queue Container */
+    .queues-container {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      padding: 16px 20px;
+      overflow: hidden;
+    }
+
+    .queue-column {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .queue-column-header {
+      padding: 12px 16px;
+      background: rgba(30, 41, 59, 0.75);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .queue-column-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .queue-counters {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .pill {
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pill.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: rgba(56, 189, 248, 0.45);
+      color: var(--accent-blue);
+    }
+
+    .pill.done {
+      background: rgba(34, 197, 94, 0.15);
+      border-color: rgba(34, 197, 94, 0.45);
+      color: #4ade80;
+    }
+
+    .pill.failed {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.45);
+      color: #f87171;
+    }
+
+    .queue-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      margin: 4px 2px 2px;
+    }
+
+    .slot-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 11px 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .slot-card.active-slot {
+      background: var(--bg-card-active);
+      border-color: rgba(56, 189, 248, 0.55);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+    }
+
+    .slot-card.completed-item {
+      border-color: rgba(34, 197, 94, 0.35);
+      opacity: 0.85;
+    }
+
+    .slot-card.failed-item {
+      border-color: rgba(239, 68, 68, 0.5);
+      background: rgba(127, 29, 29, 0.2);
+    }
+
+    .slot-top-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .file-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-main);
+      word-break: break-all;
+      overflow-wrap: anywhere;
+      line-height: 1.4;
+      flex: 1;
+    }
+
+    .slot-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(99, 102, 241, 0.22);
+      border: 1px solid rgba(99, 102, 241, 0.5);
+      color: #a5b4fc;
+      flex-shrink: 0;
+    }
+
+    .slot-meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    .codec-plan {
+      color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 28px 14px;
+      color: var(--text-muted);
+      font-size: 13px;
+      border: 1px dashed var(--border-color);
+      border-radius: 8px;
+    }
+
+    .quality-input {
+      background: #0b0f17;
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 700;
+      width: 90px;
+      text-align: center;
+    }
+
+    /* Quality Configuration Dialog Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 10, 16, 0.85);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .modal-backdrop.hidden {
+      display: none;
+    }
+
+    .quality-dialog {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 520px;
+      padding: 22px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+    }
+
+    .quality-explain-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Native OS NW.js Directory Input (opened immediately on startup) -->
+  <input type="file" id="nativeDirPicker" nwdirectory style="display: none;" />
+
+  <!-- Top Header -->
+  <header class="app-header">
+    <div class="brand-block">
+      <img src="icon.png" alt="NXTConverter" style="width: 32px; height: 32px; border-radius: 7px;" />
+      <div>
+        <div class="brand-title">NXTConverter</div>
+        <div class="brand-subtitle" id="activeDirectoryLabel">Select a directory to begin conversion...</div>
+      </div>
+      <div class="gpu-badge" id="gpuEncoderBadge">Probing GPU Hardware Encoder...</div>
+    </div>
+    <div class="header-actions">
+      <span class="pill" id="qualityLockedBadge" style="padding: 6px 12px; font-size: 12px;">Quality: 24 (Pending)</span>
+      <button class="btn btn-primary" id="addDirectoryBtn" type="button">Add Directory</button>
+    </div>
+  </header>
+
+  <!-- Metrics & Progress Strip: Overall Progress Bar, ETA, and Probing Progress -->
+  <section class="metrics-strip">
+    <!-- 1. Overall Conversion Progress Bar -->
+    <div class="metric-card">
+      <div class="metric-header">
+        <span>Overall Conversion Progress</span>
+        <span id="jobsSummaryCounter">0 / 0 Jobs</span>
+      </div>
+      <div class="metric-value-row">
+        <div class="metric-big" id="overallPercentLabel">0.0%</div>
+        <div class="metric-sub" id="completedFailedSub">0 Completed | 0 Failed | 0 Skipped</div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="overallProgressBar" style="width: 0%;"></div>
+      </div>
+    </div>
+
+    <!-- 2. Complexity-Weighted 15-Minute Staged ETA -->
+    <div class="metric-card">
+      <div class="metric-header">
+        <span>Estimated Time Remaining (ETA)</span>
+        <span id="etaWindowBadge">Window: Immediate*</span>
+      </div>
+      <div class="metric-value-row">
+        <div class="metric-big eta-highlight" id="etaValueLabel">--</div>
+        <div class="metric-sub" id="etaBucketsSub">History: 0 / 60 (15s buckets)</div>
+      </div>
+      <div class="metric-sub" id="etaCadenceNote">
+        Updates every 15s once &ge;15s fetched (* = &lt;15m history)
+      </div>
+    </div>
+
+    <!-- 3. FFprobe Probing Progress -->
+    <div class="metric-card">
+      <div class="metric-header">
+        <span>Media Probing Progress (4 Workers)</span>
+        <span id="probingStateBadge">Waiting</span>
+      </div>
+      <div class="metric-value-row">
+        <div class="metric-big" id="probingPercentLabel">0.0%</div>
+        <div class="metric-sub" id="probingCountLabel">0 / 0 files probed</div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill probing-fill" id="probingProgressBar" style="width: 0%;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Dual Queue View: Video Queue & Audio-Only Queue -->
+  <main class="queues-container">
+    <!-- Left Column: Video Transcode Queue (1 GPU Slot + Queued + Completed/Failed) -->
+    <section class="queue-column">
+      <div class="queue-column-header">
+        <div class="queue-column-title">
+          <span>Video Transcode Queue</span>
+        </div>
+        <div class="queue-counters">
+          <span class="pill active" id="videoActivePill">Active: 0/1</span>
+          <span class="pill" id="videoQueuedPill">Queued: 0</span>
+          <span class="pill done" id="videoDonePill">Done: 0</span>
+          <span class="pill failed" id="videoFailedPill">Failed: 0</span>
+        </div>
+      </div>
+      <div class="queue-body" id="videoQueueContainer">
+        <div class="empty-state">Waiting for directory selection...</div>
+      </div>
+    </section>
+
+    <!-- Right Column: Audio-Only Transcode Queue (4 Parallel Slots + Queued + Completed/Failed) -->
+    <section class="queue-column">
+      <div class="queue-column-header">
+        <div class="queue-column-title">
+          <span>Audio-Only Transcode Queue</span>
+        </div>
+        <div class="queue-counters">
+          <span class="pill active" id="audioActivePill">Active: 0/4</span>
+          <span class="pill" id="audioQueuedPill">Queued: 0</span>
+          <span class="pill done" id="audioDonePill">Done: 0</span>
+          <span class="pill failed" id="audioFailedPill">Failed: 0</span>
+        </div>
+      </div>
+      <div class="queue-body" id="audioQueueContainer">
+        <div class="empty-state">Waiting for directory selection...</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Quality Configuration Dialog (Displayed after selecting initial directory, before scanning/transcoding) -->
+  <div class="modal-backdrop hidden" id="qualityDialogModal">
+    <div class="quality-dialog">
+      <div>
+        <div class="brand-title">Configure Video Encoding Quality</div>
+        <div class="brand-subtitle" id="qualityDialogDirLabel" style="margin-top: 4px; word-break: break-all;"></div>
+      </div>
+
+      <div class="quality-explain-box">
+        <div style="font-weight: 700; color: var(--accent-blue);">How Target Quality Number (0&ndash;51) Works:</div>
+        <div>&bull; <strong>Lower numbers</strong> (e.g. 18&ndash;22) = <strong>Higher visual quality</strong>, larger output file size</div>
+        <div>&bull; <strong>Higher numbers</strong> (e.g. 26&ndash;32) = <strong>Lower visual quality</strong>, smaller output file size</div>
+        <div style="color: var(--text-muted); font-size: 12px; margin-top: 2px;">
+          Note: Quality defaults to <strong>24</strong> and is locked once transcoding begins.
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+        <label for="dialogQualityInput" style="font-size: 13px; font-weight: 600;">
+          Target Quality Number (default: 24):
+        </label>
+        <input type="number" id="dialogQualityInput" class="quality-input" value="24" min="0" max="51" />
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px;">
+        <button class="btn btn-primary" id="confirmQualityStartBtn" type="button">Start Transcoding</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (async () => {
+      try {
+        let launchUi;
+        try {
+          const mod = await import('./src/ui.js');
+          launchUi = mod.launchUi;
+        } catch {
+          const path = require('node:path');
+          const url = require('node:url');
+          const fileUrl = url.pathToFileURL(path.resolve(process.cwd(), 'src/ui.js')).href;
+          const mod = await import(fileUrl);
+          launchUi = mod.launchUi;
+        }
+        if (launchUi) {
+          await launchUi(window);
+        }
+      } catch (err) {
+        console.error('Failed to initialize NW.js Transcoder UI:', err);
+      }
+    })();
+  </script>
+</body>
+</html>

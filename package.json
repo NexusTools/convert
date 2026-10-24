@@ -1,26 +1,106 @@
 {
-  "name": "video-transcoder-cli",
-  "version": "1.0.0",
-  "description": "Batch video transcoder with AMD hardware acceleration, audio transcoding rules, and safe interrupt handling",
-  "type": "module",
-  "main": "src/index.js",
+  "name": "NXTConverter",
+  "productName": "NXTConverter",
+  "version": "1.0.0-beta.1",
+  "description": "High-efficiency GPU hardware-accelerated video & audio batch transcoder with NW.js UI and CLI",
+  "main": "index.html",
   "bin": {
-    "convert-videos": "./src/index.js"
+    "convert": "./src/index.js",
+    "nxtconverter": "./src/index.js"
+  },
+  "type": "module",
+  "window": {
+    "title": "NXTConverter",
+    "icon": "icon.png",
+    "show_in_taskbar": true,
+    "width": 1240,
+    "height": 840,
+    "min_width": 920,
+    "min_height": 620
   },
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "ui": "nw .",
+    "package": "node scripts/package-release.js"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0"
+  },
+  "devDependencies": {
+    "@nexustools/nwjsreleasepackager": "^1.0.0-beta.1"
+  },
+  "nwjsPackager": {
+    "appName": "nxtconverter",
+    "productName": "NXTConverter",
+    "executableName": "NXTConverter",
+    "version": "1.0.0-beta.1",
+    "appId": "io.nexustools.nxtconverter",
+    "author": "NexusTools",
+    "nwVersion": "0.93.0",
+    "nwFlavor": "normal",
+    "bundlingMode": "plain",
+    "icon": "icon.png",
+    "platforms": [
+      "win",
+      "osx",
+      "linux"
+    ],
+    "excludePatterns": [
+      "node_modules",
+      "scripts",
+      ".nwjs-cache",
+      "release"
+    ],
+    "extraFiles": [
+      {
+        "source": "node_modules/ffmpeg-static/bin/{nodePlatform}/{arch}/ffmpeg{ext}",
+        "destination": "bin/ffmpeg{ext}",
+        "executable": true
+      },
+      {
+        "source": "node_modules/ffprobe-static/bin/{nodePlatform}/{arch}/ffprobe{ext}",
+        "destination": "bin/ffprobe{ext}",
+        "executable": true
+      },
+      {
+        "destination": "src/ffmpegconfig.js",
+        "content": "export const FFMPEG_CONFIG = {\n  platform: '{nodePlatform}',\n  arch: '{arch}',\n  ffmpegRelativePath: 'bin/ffmpeg{ext}',\n  ffprobeRelativePath: 'bin/ffprobe{ext}'\n};\n"
+      }
+    ],
+    "win": {
+      "arch": [
+        "x64"
+      ],
+      "formats": [
+        "win-zip",
+        "win-msi"
+      ],
+      "icon": "icon.ico",
+      "manufacturer": "NexusTools"
+    },
+    "mac": {
+      "arch": [
+        "x64"
+      ],
+      "formats": [
+        "mac-dmg"
+      ],
+      "icon": "icon.png"
+    },
+    "linux": {
+      "arch": [
+        "x64"
+      ],
+      "formats": [
+        "linux-deb",
+        "linux-flatpak",
+        "linux-zip"
+      ],
+      "icon": "icon.png"
+    }
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "keywords": [
-    "ffmpeg",
-    "transcode",
-    "hevc_amf",
-    "eac3",
-    "opus",
-    "video"
-  ],
-  "author": "",
-  "license": "ISC"
+  }
 }

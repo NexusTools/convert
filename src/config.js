@@ -1,30 +1,113 @@
 import fs from 'fs';
+import { createRequire } from 'module';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { FFMPEG_CONFIG } from './ffmpegconfig.js';
 
-// Primary configured paths from Chocolatey installation
-const CHOCO_FFMPEG_PATH = 'C:\\ProgramData\\chocolatey\\lib\\ffmpeg\\tools\\ffmpeg\\bin\\ffmpeg.exe';
-const CHOCO_FFPROBE_PATH = 'C:\\ProgramData\\chocolatey\\lib\\ffmpeg\\tools\\ffmpeg\\bin\\ffprobe.exe';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const APP_ROOT_DIR = path.resolve(__dirname, '..');
+const require = createRequire(import.meta.url);
 
 /**
- * Resolves the available FFmpeg executable path.
- * Checks Chocolatey path first, falling back to system PATH if missing.
+ * Resolves the bundled or npm-installed FFmpeg executable path for the current operating system and architecture.
+ * 1. Checks `FFMPEG_CONFIG.ffmpegRelativePath` (injected per-platform by @nexustools/nwjsreleasepackager in `src/ffmpegconfig.js`).
+ * 2. Checks `bin/ffmpeg[.exe]` inside the packaged application root.
+ * 3. Resolves from the `ffmpeg-static` npm package for the active `process.platform` and `process.arch`.
  */
 export function getFfmpegPath() {
-  if (fs.existsSync(CHOCO_FFMPEG_PATH)) {
-    return CHOCO_FFMPEG_PATH;
+  const exeName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+
+  if (FFMPEG_CONFIG && FFMPEG_CONFIG.ffmpegRelativePath) {
+    const candidateFromRoot = path.resolve(APP_ROOT_DIR, FFMPEG_CONFIG.ffmpegRelativePath);
+    if (fs.existsSync(candidateFromRoot)) {
+      return candidateFromRoot;
+    }
+    const candidateFromCwd = path.resolve(process.cwd(), FFMPEG_CONFIG.ffmpegRelativePath);
+    if (fs.existsSync(candidateFromCwd)) {
+      return candidateFromCwd;
+    }
   }
-  return 'ffmpeg';
+
+  const bundledBinCandidate = path.join(APP_ROOT_DIR, 'bin', exeName);
+  if (fs.existsSync(bundledBinCandidate)) {
+    return bundledBinCandidate;
+  }
+
+  const npmPlatformBin = path.join(
+    APP_ROOT_DIR,
+    'node_modules',
+    'ffmpeg-static',
+    'bin',
+    process.platform,
+    process.arch,
+    exeName
+  );
+  if (fs.existsSync(npmPlatformBin)) {
+    return npmPlatformBin;
+  }
+
+  try {
+    const ffmpegStaticPath = require('ffmpeg-static');
+    if (typeof ffmpegStaticPath === 'string' && fs.existsSync(ffmpegStaticPath)) {
+      return ffmpegStaticPath;
+    }
+  } catch {}
+
+  const directNpmCandidate = path.join(APP_ROOT_DIR, 'node_modules', 'ffmpeg-static', exeName);
+  if (fs.existsSync(directNpmCandidate)) {
+    return directNpmCandidate;
+  }
+
+  return exeName;
 }
 
 /**
- * Resolves the available FFprobe executable path.
- * Checks Chocolatey path first, falling back to system PATH if missing.
+ * Resolves the bundled or npm-installed FFprobe executable path for the current operating system and architecture.
+ * 1. Checks `FFMPEG_CONFIG.ffprobeRelativePath` (injected per-platform by @nexustools/nwjsreleasepackager in `src/ffmpegconfig.js`).
+ * 2. Checks `bin/ffprobe[.exe]` inside the packaged application root.
+ * 3. Resolves from the `ffprobe-static` npm package for the active `process.platform` and `process.arch`.
  */
 export function getFfprobePath() {
-  if (fs.existsSync(CHOCO_FFPROBE_PATH)) {
-    return CHOCO_FFPROBE_PATH;
+  const exeName = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
+
+  if (FFMPEG_CONFIG && FFMPEG_CONFIG.ffprobeRelativePath) {
+    const candidateFromRoot = path.resolve(APP_ROOT_DIR, FFMPEG_CONFIG.ffprobeRelativePath);
+    if (fs.existsSync(candidateFromRoot)) {
+      return candidateFromRoot;
+    }
+    const candidateFromCwd = path.resolve(process.cwd(), FFMPEG_CONFIG.ffprobeRelativePath);
+    if (fs.existsSync(candidateFromCwd)) {
+      return candidateFromCwd;
+    }
   }
-  return 'ffprobe';
+
+  const bundledBinCandidate = path.join(APP_ROOT_DIR, 'bin', exeName);
+  if (fs.existsSync(bundledBinCandidate)) {
+    return bundledBinCandidate;
+  }
+
+  const npmPlatformBin = path.join(
+    APP_ROOT_DIR,
+    'node_modules',
+    'ffprobe-static',
+    'bin',
+    process.platform,
+    process.arch,
+    exeName
+  );
+  if (fs.existsSync(npmPlatformBin)) {
+    return npmPlatformBin;
+  }
+
+  try {
+    const ffprobeStatic = require('ffprobe-static');
+    if (ffprobeStatic && typeof ffprobeStatic.path === 'string' && fs.existsSync(ffprobeStatic.path)) {
+      return ffprobeStatic.path;
+    }
+  } catch {}
+
+  return exeName;
 }
 
 /**

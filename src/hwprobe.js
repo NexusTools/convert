@@ -77,6 +77,96 @@ export async function probeFfmpegEncoders() {
 
 /**
  * Executes a 0.2-second 4K (3840x2160) UHD synthetic test transcode to verify active GPU driver functionality.
+ * Automatically probes secondary D3D11 hardware adapters (0, 1, 2) with hwupload when running on multi-GPU systems.
+ *
+ * @param {string} encoderName Name of the hardware encoder to test.
+ * @param {boolean} testHdr10Bit Whether to test 10-bit HDR hardware encoding capabilities.
+ * @param {Object} [adapterHint] Optional adapter configuration discovered during SDR probe.
+ * @returns {Promise<{ passed: boolean, hwDeviceSpec?: string|null, requiresHwUpload?: boolean }>}
+ */
+export async function probeHardwareEncoderConfig(encoderName, testHdr10Bit = false, adapterHint = null) {
+  const ffmpegPath = getFfmpegPath();
+  const info = KNOWN_HARDWARE_ENCODERS[encoderName] || {};
+
+  const buildCandidateArgs = ({ hwDeviceSpec = null, requiresHwUpload = false, useMain10Profile = true } = {}) => {
+    const args = ['-y'];
+    if (hwDeviceSpec) {
+      args.push('-init_hw_device', hwDeviceSpec, '-filter_hw_device', 'hw');
+    }
+    args.push('-f', 'lavfi', '-i', 'testsrc=duration=0.2:size=3840x2160:rate=30');
+
+    const pixFmt = testHdr10Bit ? 'p010le' : 'nv12';
+    if (requiresHwUpload) {
+      args.push('-vf', `format=${pixFmt},hwupload`);
+    } else {
+      args.push('-pix_fmt', pixFmt);
+    }
+
+    if (testHdr10Bit) {
+      args.push('-color_trc', 'smpte2084', '-colorspace', 'bt2020nc', '-color_primaries', 'bt2020');
+      if (useMain10Profile && (info.type === 'amf' || info.type === 'nvenc' || info.type === 'qsv')) {
+        args.push('-c:v', encoderName, '-profile:v', 'main10');
+      } else {
+        args.push('-c:v', encoderName);
+      }
+    } else {
+      args.push('-c:v', encoderName);
+    }
+
+    args.push('-f', 'null', '-');
+    return args;
+  };
+
+  const candidates = [];
+  if (adapterHint && adapterHint.hwDeviceSpec) {
+    candidates.push({
+      hwDeviceSpec: adapterHint.hwDeviceSpec,
+      requiresHwUpload: Boolean(adapterHint.requiresHwUpload),
+      useMain10Profile: true
+    });
+    if (testHdr10Bit && info.type === 'amf') {
+      candidates.push({
+        hwDeviceSpec: adapterHint.hwDeviceSpec,
+        requiresHwUpload: Boolean(adapterHint.requiresHwUpload),
+        useMain10Profile: false
+      });
+    }
+  } else {
+    // 1. Default direct adapter test
+    candidates.push({ hwDeviceSpec: null, requiresHwUpload: false, useMain10Profile: true });
+    if (testHdr10Bit && info.type === 'amf') {
+      candidates.push({ hwDeviceSpec: null, requiresHwUpload: false, useMain10Profile: false });
+    }
+    // 2. Multi-GPU D3D11VA adapter fallback on Windows (e.g. discrete GPU on adapter 0, 1, or 2)
+    if (process.platform === 'win32' && (info.type === 'amf' || info.type === 'qsv' || info.type === 'nvenc')) {
+      for (const idx of [0, 1, 2]) {
+        candidates.push({
+          hwDeviceSpec: `d3d11va=hw:${idx}`,
+          requiresHwUpload: true,
+          useMain10Profile: !testHdr10Bit || info.type !== 'amf'
+        });
+      }
+    }
+  }
+
+  for (const cand of candidates) {
+    try {
+      const args = buildCandidateArgs(cand);
+      await execFileAsync(ffmpegPath, args, { timeout: 4500 });
+      return {
+        passed: true,
+        hwDeviceSpec: cand.hwDeviceSpec,
+        requiresHwUpload: cand.requiresHwUpload,
+        useMain10Profile: cand.useMain10Profile
+      };
+    } catch {}
+  }
+
+  return { passed: false, hwDeviceSpec: null, requiresHwUpload: false };
+}
+
+/**
+ * Executes a 0.2-second 4K (3840x2160) UHD synthetic test transcode to verify active GPU driver functionality.
  * Ensures HDR is only reported supported if it works at 4K resolution.
  *
  * @param {string} encoderName Name of the hardware encoder to test.
@@ -84,35 +174,8 @@ export async function probeFfmpegEncoders() {
  * @returns {Promise<boolean>} True if the hardware test succeeded at 4K.
  */
 export async function testHardwareEncoder(encoderName, testHdr10Bit = false) {
-  const ffmpegPath = getFfmpegPath();
-  const info = KNOWN_HARDWARE_ENCODERS[encoderName] || {};
-
-  // Test at 4K resolution (3840x2160)
-  const args = [
-    '-y',
-    '-f', 'lavfi',
-    '-i', 'testsrc=duration=0.2:size=3840x2160:rate=30'
-  ];
-
-  if (testHdr10Bit) {
-    args.push('-pix_fmt', 'p010le', '-color_trc', 'smpte2084', '-colorspace', 'bt2020nc', '-color_primaries', 'bt2020');
-    if (info.type === 'amf' || info.type === 'nvenc' || info.type === 'qsv') {
-      args.push('-c:v', encoderName, '-profile:v', 'main10');
-    } else {
-      args.push('-c:v', encoderName);
-    }
-  } else {
-    args.push('-pix_fmt', 'nv12', '-c:v', encoderName);
-  }
-
-  args.push('-f', 'null', '-');
-
-  try {
-    await execFileAsync(ffmpegPath, args, { timeout: 4000 });
-    return true;
-  } catch (e) {
-    return false;
-  }
+  const res = await probeHardwareEncoderConfig(encoderName, testHdr10Bit);
+  return res.passed;
 }
 
 /**
@@ -134,13 +197,16 @@ export async function selectBestHardwareEncoder() {
   const verifiedEncoders = [];
 
   for (const candidate of detected) {
-    const sdrPassed = await testHardwareEncoder(candidate.name, false);
-    if (sdrPassed) {
-      const hdrPassed = await testHardwareEncoder(candidate.name, true);
+    const sdrProbe = await probeHardwareEncoderConfig(candidate.name, false);
+    if (sdrProbe.passed) {
+      const hdrProbe = await probeHardwareEncoderConfig(candidate.name, true, sdrProbe);
       verifiedEncoders.push({
         ...candidate,
         supportsSdr: true,
-        supportsHdr: hdrPassed
+        supportsHdr: hdrProbe.passed,
+        hwDeviceSpec: sdrProbe.hwDeviceSpec || null,
+        requiresHwUpload: Boolean(sdrProbe.requiresHwUpload),
+        useMain10Profile: Boolean(hdrProbe.useMain10Profile)
       });
     }
   }
@@ -160,6 +226,9 @@ export async function selectBestHardwareEncoder() {
     type: best.type,
     supportsSdr: best.supportsSdr,
     supportsHdr: best.supportsHdr,
+    hwDeviceSpec: best.hwDeviceSpec || null,
+    requiresHwUpload: Boolean(best.requiresHwUpload),
+    useMain10Profile: Boolean(best.useMain10Profile),
     verifiedEncoders,
     allProbedEncoders: detected
   };
