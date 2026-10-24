@@ -3,7 +3,13 @@
   "productName": "NXTConverter",
   "version": "1.0.0-beta.1",
   "description": "High-efficiency GPU hardware-accelerated video & audio batch transcoder with NW.js UI and CLI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NexusTools/convert.git"
+  },
   "main": "index.html",
+  "node-remote": "<all_urls>",
+  "chromium-args": "--enable-features=NWESM,NWChainImportNode,NWChainImportDom",
   "bin": {
     "convert": "./src/index.js",
     "nxtconverter": "./src/index.js"
@@ -37,7 +43,7 @@
     "version": "1.0.0-beta.1",
     "appId": "io.nexustools.nxtconverter",
     "author": "NexusTools",
-    "nwVersion": "0.93.0",
+    "nwVersion": "0.115.0",
     "nwFlavor": "normal",
     "bundlingMode": "plain",
     "icon": "icon.png",

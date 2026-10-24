@@ -150,6 +150,11 @@ export async function launchUi(win) {
             nw.App.quit();
           }
         } catch {}
+        try {
+          if (typeof process !== 'undefined' && typeof process.exit === 'function') {
+            process.exit(win.isStartupErrorActive ? 1 : 0);
+          }
+        } catch {}
       });
     }
   } catch {}
@@ -165,9 +170,13 @@ export async function launchUi(win) {
       gpuEncoderBadge.textContent = `GPU Probe Error: ${err.message}`;
       gpuEncoderBadge.style.borderColor = 'rgba(239, 68, 68, 0.5)';
       gpuEncoderBadge.style.color = '#fca5a5';
+      if (typeof win.showStartupErrorModal === 'function') {
+        win.showStartupErrorModal(err);
+      }
       throw err;
     }
   })();
+  hardwareEncoderPromise.catch(() => {});
 
   /**
    * Renders a video item card (active slot, queued item, completed item, or failed item).

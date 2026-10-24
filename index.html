@@ -586,25 +586,207 @@
     </div>
   </div>
 
+  <!-- Startup Error Dialog Modal (Displays stack trace for GitHub issue reporting and exits on close) -->
+  <div class="modal-backdrop hidden" id="startupErrorModal" style="z-index: 2000;">
+    <div class="quality-dialog" style="max-width: 680px; border-color: rgba(239, 68, 68, 0.6);">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+        <div>
+          <div class="brand-title" style="color: #f87171;">Startup Error Detected</div>
+          <div class="brand-subtitle" style="margin-top: 4px;">
+            An unexpected error occurred during startup. Please copy the stack trace below and submit an issue on GitHub:
+            <strong style="color: var(--accent-blue);">https://github.com/NexusTools/convert/issues</strong>
+          </div>
+        </div>
+      </div>
+
+      <pre id="startupErrorStacktrace" style="
+        background: #0b0f17;
+        border: 1px solid rgba(239, 68, 68, 0.45);
+        border-radius: 8px;
+        padding: 12px 14px;
+        color: #fca5a5;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        max-height: 320px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        user-select: text;
+      "></pre>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px;">
+        <div style="display: flex; gap: 8px;">
+          <button class="btn" id="copyStartupErrorBtn" type="button">Copy Stack Trace</button>
+          <button class="btn" id="openGithubIssuesBtn" type="button">Submit on GitHub</button>
+        </div>
+        <button class="btn btn-danger" id="closeStartupErrorBtn" type="button">Close &amp; Exit</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     (async () => {
+      let startupErrorActive = false;
+
+      function exitOnStartupError() {
+        try {
+          if (typeof process !== 'undefined' && typeof process.exit === 'function') {
+            process.exit(1);
+          }
+        } catch {}
+        try {
+          if (typeof nw !== 'undefined' && nw.App && typeof nw.App.quit === 'function') {
+            nw.App.quit();
+          }
+        } catch {}
+        try {
+          window.close();
+        } catch {}
+      }
+
+      function formatStartupErrorReport(err) {
+        const stack = err && err.stack ? err.stack : String(err && err.message ? err.message : err);
+        const envLines = [];
+        try {
+          if (typeof process !== 'undefined') {
+            envLines.push(`Platform: ${process.platform} (${process.arch})`);
+            if (process.versions) {
+              envLines.push(`Node: ${process.versions.node || 'unknown'} | NW.js: ${process.versions.nw || 'unknown'} | Chromium: ${process.versions.chromium || 'unknown'}`);
+            }
+          }
+        } catch {}
+        envLines.push(`Timestamp: ${new Date().toISOString()}`);
+        return `${envLines.join('\n')}\n\n${stack}`;
+      }
+
+      function showStartupErrorModal(err) {
+        startupErrorActive = true;
+        window.isStartupErrorActive = true;
+        console.error('Startup error detected:', err);
+        const modal = document.getElementById('startupErrorModal');
+        const pre = document.getElementById('startupErrorStacktrace');
+        const qualityModal = document.getElementById('qualityDialogModal');
+        if (qualityModal) {
+          qualityModal.classList.add('hidden');
+        }
+        const reportText = formatStartupErrorReport(err);
+        if (pre) {
+          pre.textContent = reportText;
+        }
+        if (modal) {
+          modal.classList.remove('hidden');
+        }
+      }
+
+      window.showStartupErrorModal = showStartupErrorModal;
+
+      const copyBtn = document.getElementById('copyStartupErrorBtn');
+      const githubBtn = document.getElementById('openGithubIssuesBtn');
+      const closeBtn = document.getElementById('closeStartupErrorBtn');
+
+      if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+          const pre = document.getElementById('startupErrorStacktrace');
+          const text = pre ? pre.textContent : '';
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(text);
+            } else if (typeof nw !== 'undefined' && nw.Clipboard && typeof nw.Clipboard.get === 'function') {
+              nw.Clipboard.get().set(text, 'text');
+            }
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => {
+              copyBtn.textContent = 'Copy Stack Trace';
+            }, 2000);
+          } catch {}
+        });
+      }
+
+      if (githubBtn) {
+        githubBtn.addEventListener('click', () => {
+          const issuesUrl = 'https://github.com/NexusTools/convert/issues/new';
+          try {
+            if (typeof nw !== 'undefined' && nw.Shell && typeof nw.Shell.openExternal === 'function') {
+              nw.Shell.openExternal(issuesUrl);
+              return;
+            }
+          } catch {}
+          try {
+            window.open(issuesUrl, '_blank');
+          } catch {}
+        });
+      }
+
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          exitOnStartupError();
+        });
+      }
+
+      try {
+        if (typeof nw !== 'undefined' && nw.Window && typeof nw.Window.get === 'function') {
+          const nwWin = nw.Window.get();
+          nwWin.on('close', () => {
+            if (startupErrorActive) {
+              exitOnStartupError();
+            }
+          });
+        }
+      } catch {}
+
       try {
         let launchUi;
+        const path = require('node:path');
+        const fs = require('node:fs');
+        const url = require('node:url');
+
+        const candidateRoots = [
+          typeof nw !== 'undefined' && nw.App && nw.App.startPath ? nw.App.startPath : null,
+          process.cwd(),
+          process.execPath ? path.dirname(process.execPath) : null,
+          process.execPath ? path.resolve(path.dirname(process.execPath), '../Resources/app.nw') : null
+        ].filter(Boolean);
+
+        let uiPath = path.resolve(process.cwd(), 'src/ui.js');
+        let foundUiFile = false;
+        for (const root of candidateRoots) {
+          const candidate = path.resolve(root, 'src/ui.js');
+          if (fs.existsSync(candidate)) {
+            uiPath = candidate;
+            foundUiFile = true;
+            break;
+          }
+        }
+
+        if (!foundUiFile && !fs.existsSync(uiPath)) {
+          throw new Error(`Unable to locate application UI module (src/ui.js). Searched roots: ${candidateRoots.join(', ')}`);
+        }
+
+        let lastLoadError = null;
         try {
-          const mod = await import('./src/ui.js');
-          launchUi = mod.launchUi;
-        } catch {
-          const path = require('node:path');
-          const url = require('node:url');
-          const fileUrl = url.pathToFileURL(path.resolve(process.cwd(), 'src/ui.js')).href;
+          const fileUrl = url.pathToFileURL(uiPath).href;
           const mod = await import(fileUrl);
           launchUi = mod.launchUi;
+        } catch (err1) {
+          lastLoadError = err1;
+          try {
+            const mod = require(uiPath);
+            launchUi = mod.launchUi;
+          } catch (err2) {
+            lastLoadError = err2;
+            const mod = await import('./src/ui.js');
+            launchUi = mod.launchUi;
+          }
         }
-        if (launchUi) {
-          await launchUi(window);
+
+        if (typeof launchUi !== 'function') {
+          throw lastLoadError || new Error('Failed to load launchUi function from src/ui.js');
         }
+
+        await launchUi(window);
       } catch (err) {
-        console.error('Failed to initialize NW.js Transcoder UI:', err);
+        showStartupErrorModal(err);
       }
     })();
   </script>

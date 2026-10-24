@@ -4,10 +4,45 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { FFMPEG_CONFIG } from './ffmpegconfig.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const APP_ROOT_DIR = path.resolve(__dirname, '..');
-const require = createRequire(import.meta.url);
+const APP_ROOT_DIR = (() => {
+  try {
+    if (import.meta.url && import.meta.url.startsWith('file:')) {
+      const filename = fileURLToPath(import.meta.url);
+      return path.resolve(path.dirname(filename), '..');
+    }
+  } catch {}
+  if (typeof nw !== 'undefined' && nw.App && nw.App.startPath) {
+    return path.resolve(nw.App.startPath);
+  }
+  return process.cwd();
+})();
+
+const require = (() => {
+  try {
+    if (import.meta.url && import.meta.url.startsWith('file:')) {
+      return createRequire(import.meta.url);
+    }
+  } catch {}
+  try {
+    return createRequire(path.join(APP_ROOT_DIR, 'package.json'));
+  } catch {}
+  return typeof globalThis.require === 'function' ? globalThis.require : () => null;
+})();
+
+/**
+ * Returns candidate application root directories across dev and packaged NW.js environments.
+ * @returns {string[]}
+ */
+function getCandidateAppRoots() {
+  const roots = [
+    APP_ROOT_DIR,
+    typeof nw !== 'undefined' && nw.App && nw.App.startPath ? path.resolve(nw.App.startPath) : null,
+    process.cwd(),
+    process.execPath ? path.dirname(process.execPath) : null,
+    process.execPath ? path.resolve(path.dirname(process.execPath), '../Resources/app.nw') : null
+  ].filter(Boolean);
+  return [...new Set(roots)];
+}
 
 /**
  * Resolves the bundled or npm-installed FFmpeg executable path for the current operating system and architecture.
@@ -17,34 +52,37 @@ const require = createRequire(import.meta.url);
  */
 export function getFfmpegPath() {
   const exeName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const roots = getCandidateAppRoots();
 
   if (FFMPEG_CONFIG && FFMPEG_CONFIG.ffmpegRelativePath) {
-    const candidateFromRoot = path.resolve(APP_ROOT_DIR, FFMPEG_CONFIG.ffmpegRelativePath);
-    if (fs.existsSync(candidateFromRoot)) {
-      return candidateFromRoot;
-    }
-    const candidateFromCwd = path.resolve(process.cwd(), FFMPEG_CONFIG.ffmpegRelativePath);
-    if (fs.existsSync(candidateFromCwd)) {
-      return candidateFromCwd;
+    for (const root of roots) {
+      const candidate = path.resolve(root, FFMPEG_CONFIG.ffmpegRelativePath);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
     }
   }
 
-  const bundledBinCandidate = path.join(APP_ROOT_DIR, 'bin', exeName);
-  if (fs.existsSync(bundledBinCandidate)) {
-    return bundledBinCandidate;
+  for (const root of roots) {
+    const bundledBinCandidate = path.join(root, 'bin', exeName);
+    if (fs.existsSync(bundledBinCandidate)) {
+      return bundledBinCandidate;
+    }
   }
 
-  const npmPlatformBin = path.join(
-    APP_ROOT_DIR,
-    'node_modules',
-    'ffmpeg-static',
-    'bin',
-    process.platform,
-    process.arch,
-    exeName
-  );
-  if (fs.existsSync(npmPlatformBin)) {
-    return npmPlatformBin;
+  for (const root of roots) {
+    const npmPlatformBin = path.join(
+      root,
+      'node_modules',
+      'ffmpeg-static',
+      'bin',
+      process.platform,
+      process.arch,
+      exeName
+    );
+    if (fs.existsSync(npmPlatformBin)) {
+      return npmPlatformBin;
+    }
   }
 
   try {
@@ -54,9 +92,11 @@ export function getFfmpegPath() {
     }
   } catch {}
 
-  const directNpmCandidate = path.join(APP_ROOT_DIR, 'node_modules', 'ffmpeg-static', exeName);
-  if (fs.existsSync(directNpmCandidate)) {
-    return directNpmCandidate;
+  for (const root of roots) {
+    const directNpmCandidate = path.join(root, 'node_modules', 'ffmpeg-static', exeName);
+    if (fs.existsSync(directNpmCandidate)) {
+      return directNpmCandidate;
+    }
   }
 
   return exeName;
@@ -70,34 +110,37 @@ export function getFfmpegPath() {
  */
 export function getFfprobePath() {
   const exeName = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
+  const roots = getCandidateAppRoots();
 
   if (FFMPEG_CONFIG && FFMPEG_CONFIG.ffprobeRelativePath) {
-    const candidateFromRoot = path.resolve(APP_ROOT_DIR, FFMPEG_CONFIG.ffprobeRelativePath);
-    if (fs.existsSync(candidateFromRoot)) {
-      return candidateFromRoot;
-    }
-    const candidateFromCwd = path.resolve(process.cwd(), FFMPEG_CONFIG.ffprobeRelativePath);
-    if (fs.existsSync(candidateFromCwd)) {
-      return candidateFromCwd;
+    for (const root of roots) {
+      const candidate = path.resolve(root, FFMPEG_CONFIG.ffprobeRelativePath);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
     }
   }
 
-  const bundledBinCandidate = path.join(APP_ROOT_DIR, 'bin', exeName);
-  if (fs.existsSync(bundledBinCandidate)) {
-    return bundledBinCandidate;
+  for (const root of roots) {
+    const bundledBinCandidate = path.join(root, 'bin', exeName);
+    if (fs.existsSync(bundledBinCandidate)) {
+      return bundledBinCandidate;
+    }
   }
 
-  const npmPlatformBin = path.join(
-    APP_ROOT_DIR,
-    'node_modules',
-    'ffprobe-static',
-    'bin',
-    process.platform,
-    process.arch,
-    exeName
-  );
-  if (fs.existsSync(npmPlatformBin)) {
-    return npmPlatformBin;
+  for (const root of roots) {
+    const npmPlatformBin = path.join(
+      root,
+      'node_modules',
+      'ffprobe-static',
+      'bin',
+      process.platform,
+      process.arch,
+      exeName
+    );
+    if (fs.existsSync(npmPlatformBin)) {
+      return npmPlatformBin;
+    }
   }
 
   try {
