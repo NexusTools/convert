@@ -83,7 +83,8 @@
         "win-msi"
       ],
       "icon": "icon.ico",
-      "manufacturer": "NexusTools"
+      "manufacturer": "NexusTools",
+      "installPath": "NexusTools\\NXTConvert"
     },
     "mac": {
       "arch": [
