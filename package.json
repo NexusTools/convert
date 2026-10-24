@@ -34,7 +34,7 @@
     "ffprobe-static": "^3.1.0"
   },
   "devDependencies": {
-    "@nexustools/nwjsreleasepackager": "^1.0.0-beta.1"
+    "@nexustools/nwjsreleasepackager": "^1.0.0-beta.2"
   },
   "nwjsPackager": {
     "appName": "nxtconverter",
